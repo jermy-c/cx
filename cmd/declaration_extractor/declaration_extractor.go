@@ -428,22 +428,70 @@ func ExtractFuncs(source []byte, fileName string) ([]FuncDeclaration, error) {
 
 		if match := reFunc.FindIndex(line); match != nil {
 
-			reFunc := regexp.MustCompile(`func(?:(?:\s*\(\s*[_a-zA-Z]\w*\s+\*{0,1}\s*(?:\[(?:[1-9]\d+|[0-9]){0,1}\]){0,1}\s*[_a-zA-Z]\w*(?:\.[_a-zA-Z]\w*)*\s*\)\s*)|\s+)([_a-zA-Z]\w*)(?:\s*\(\s*(?:(?:[_a-zA-Z]\w*\s+\*{0,1}\s*(?:\[(?:[1-9]\d+|[0-9]){0,1}\]){0,1}\s*[_a-zA-Z]\w*(?:\.[_a-zA-Z]\w*)*\s*,\s*)+[_a-zA-Z]\w*\s+\*{0,1}\s*(?:\[(?:[1-9]\d+|[0-9]){0,1}\]){0,1}\s*[_a-zA-Z]\w*(?:\.[_a-zA-Z]\w*)*|(?:[_a-zA-Z]\w*\s+\*{0,1}\s*(?:\[(?:[1-9]\d+|[0-9]){0,1}\]){0,1}\s*[_a-zA-Z]\w*(?:\.[_a-zA-Z]\w*)*){0,1})\s*\)){1,2}(?:\s*{){0,1}`)
-
-			funcBytes := reFunc.FindSubmatch(line)
-			funcIdx := reFunc.FindIndex(line)
-
-			if funcBytes == nil || !bytes.Equal(funcBytes[0], bytes.TrimSpace(line)) {
-				return FuncDeclarationsArray, fmt.Errorf("%v: %v: syntax error: func declaration", fileName, lineno)
-			}
-
 			var funcDeclaration FuncDeclaration
 			funcDeclaration.PackageID = pkg
 			funcDeclaration.FileID = fileName
 			funcDeclaration.StartOffset = match[0] + currentOffset
 			funcDeclaration.LineNumber = lineno
-			funcDeclaration.FuncName = string(funcBytes[1])
-			funcDeclaration.Length = funcIdx[1] - funcIdx[0]
+
+			reFuncRegular := regexp.MustCompile(`func\s+([_a-zA-Z]\w*)`)
+			reFuncMethod := regexp.MustCompile(`func\s*\(\s*[_a-zA-Z]\w*\s+\*{0,1}\s*(?:\[(?:[1-9]\d+|[0-9]){0,1}\]){0,1}\s*[_a-zA-Z]\w*(?:\.[_a-zA-Z]\w*)*\s*\)\s*([_a-zA-Z]\w*)`)
+
+			funcRegular := reFuncRegular.FindSubmatchIndex(line)
+			funcMethod := reFuncMethod.FindSubmatchIndex(line)
+			var funcNameIdx int
+
+			if funcRegular == nil && funcMethod == nil {
+				return FuncDeclarationsArray, fmt.Errorf("func err")
+			}
+
+			if funcRegular != nil {
+				funcDeclaration.FuncName = string(line[funcRegular[2]:funcRegular[3]])
+				funcNameIdx = funcRegular[1]
+			}
+
+			if funcMethod != nil {
+				funcDeclaration.FuncName = string(line[funcMethod[2]:funcMethod[3]])
+				funcNameIdx = funcMethod[1]
+			}
+
+			reInParen := regexp.MustCompile(`\(([\w\s\*\,\[\]]*)\)`)
+
+			inParens := reInParen.FindAllSubmatchIndex(line[funcNameIdx:], -1)
+
+			if inParens == nil || len(inParens) > 2 {
+				return FuncDeclarationsArray, fmt.Errorf("parenthesis error")
+			}
+
+			for _, inParen := range inParens {
+
+				inParenByte := line[inParen[2]+funcNameIdx : inParen[3]+funcNameIdx]
+
+				reNotEmptyParen := regexp.MustCompile(`\S+`)
+
+				if reNotEmptyParen.FindIndex(inParenByte) == nil {
+					continue
+				}
+
+				params := bytes.Split(inParenByte, []byte(","))
+
+				for _, param := range params {
+
+					removeSpace := bytes.TrimSpace(param)
+
+					reParam := regexp.MustCompile(`[_a-zA-Z]\w*\s+\*{0,1}\s*(?:\[(?:[1-9]\d+|[0-9]){0,1}\]){0,1}\s*[_a-zA-Z]\w*(?:\.[_a-zA-Z]\w*)*\s*`)
+
+					if len(reParam.Find(removeSpace)) != len(removeSpace) {
+						return FuncDeclarationsArray, fmt.Errorf("param err")
+					}
+
+				}
+
+			}
+
+			lastIndex := bytes.LastIndex(line, []byte(")"))
+
+			funcDeclaration.Length = lastIndex - match[0] + 1
 
 			FuncDeclarationsArray = append(FuncDeclarationsArray, funcDeclaration)
 
