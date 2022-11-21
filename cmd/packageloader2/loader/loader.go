@@ -22,7 +22,7 @@ var SKIP_PACKAGES = []string{"al", "gl", "glfw", "time", "os", "gltext", "cx", "
 var FileHashMap = make(map[string]string)
 var PackageHashMap = make(map[string]string)
 
-func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCode []*os.File, fileNames []string) {
+func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCode []*os.File, rootDirs []string, fileNames []string) {
 	skip := false // flag for skipping arg
 
 	for _, arg := range args {
@@ -58,6 +58,7 @@ func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCod
 		case mode.IsDir():
 			var fileList []string
 			var err error
+			rootDir := filepath.Dir(arg)
 
 			// Checking if we want to check all subdirectories.
 			if alsoSubdirs {
@@ -84,6 +85,7 @@ func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCod
 
 				if fiNameLen > 2 && fiName[fiNameLen-3:] == ".cx" {
 					// only loading .cx files
+					rootDirs = append(rootDirs, rootDir)
 					sourceCode = append(sourceCode, file)
 					fileNames = append(fileNames, fiName)
 				}
@@ -95,18 +97,19 @@ func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCod
 				panic(err)
 			}
 
+			rootDirs = append(rootDirs, filepath.Base(file.Name()))
 			fileNames = append(fileNames, file.Name())
 			sourceCode = append(sourceCode, file)
 		}
 	}
 
-	return cxArgs, sourceCode, fileNames
+	return cxArgs, sourceCode, rootDirs, fileNames
 }
 
-func LoadCXProgram(programName string, sourceCode []*os.File, database string) (err error) {
+func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, database string) (err error) {
 
 	// Gets the source files
-	fileMap, err := createFileMap(sourceCode)
+	fileMap, err := createFileMap(rootDir, sourceCode)
 	if err != nil {
 		return err
 	}
@@ -169,26 +172,34 @@ func ioReadDir(root string) ([]string, error) {
 	return files, nil
 }
 
-func createFileMap(files []*os.File) (fileMap map[string][]*os.File, err error) {
+func createFileMap(rootDir []string, files []*os.File) (fileMap map[string][]*os.File, err error) {
 	fileMap = make(map[string][]*os.File)
-	for _, file := range files {
-		path := strings.Split(file.Name(), "/")
-		packageName := path[len(path)-2]
+	for i, file := range files {
 		filePackageName, err := getPackageName(file)
 		if err != nil {
 			return fileMap, err
 		}
-		if packageName == "src" {
-			if filePackageName != "main" {
-				return fileMap, fmt.Errorf("%s: package error: package %s found in main", filepath.Base(file.Name()), filePackageName)
+
+		if strings.Contains(rootDir[i], ".cx") {
+			fileMap[filePackageName] = append(fileMap[filePackageName], file)
+
+		} else {
+			path := strings.Split(file.Name(), "/")
+			packageName := path[len(path)-2]
+
+			if packageName == rootDir[i] || packageName == "src" {
+				if filePackageName != "main" {
+					return fileMap, fmt.Errorf("%s: package error: package %s found in main", filepath.Base(file.Name()), filePackageName)
+				}
+				fileMap["main"] = append(fileMap["main"], file)
+				continue
 			}
-			fileMap["main"] = append(fileMap["main"], file)
-			continue
+			if filePackageName != packageName {
+				return fileMap, fmt.Errorf("%s: package error: package %s found in %v", filepath.Base(file.Name()), filePackageName, packageName)
+			}
+			fileMap[packageName] = append(fileMap[packageName], file)
 		}
-		if filePackageName != packageName {
-			return fileMap, fmt.Errorf("%s: package error: package %s found in %v", filepath.Base(file.Name()), filePackageName, packageName)
-		}
-		fileMap[packageName] = append(fileMap[packageName], file)
+
 	}
 	return fileMap, nil
 }

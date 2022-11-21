@@ -160,8 +160,8 @@ func TestCreateFileMap(t *testing.T) {
 
 	for _, testcase := range tests {
 		t.Run(testcase.Scenario, func(t *testing.T) {
-			_, sourceCodes, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, true)
-			gotFileMap, gotErr := loader.CreateFileMap(sourceCodes)
+			_, sourceCodes, rootDirs, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, true)
+			gotFileMap, gotErr := loader.CreateFileMap(rootDirs, sourceCodes)
 			for wantKey, wantValue := range testcase.WantFileMap {
 				gotValue, ok := gotFileMap[wantKey]
 				if !ok {
@@ -287,8 +287,8 @@ func TestAddNewPackage(t *testing.T) {
 	}
 	for _, testcase := range tests {
 		t.Run(testcase.Scenario, func(t *testing.T) {
-			_, sourceCodes, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, false)
-			fileMap, err := loader.CreateFileMap(sourceCodes)
+			_, sourceCodes, rootDirs, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, false)
+			fileMap, err := loader.CreateFileMap(rootDirs, sourceCodes)
 			if err != nil {
 				t.Error(err)
 			}
@@ -375,8 +375,8 @@ func TestLoadImportPackages(t *testing.T) {
 
 	for _, testcase := range tests {
 		t.Run(testcase.Scenario, func(t *testing.T) {
-			_, sourceCodes, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, true)
-			fileMap, err := loader.CreateFileMap(sourceCodes)
+			_, sourceCodes, rootDirs, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, true)
+			fileMap, err := loader.CreateFileMap(rootDirs, sourceCodes)
 			if err != nil {
 				t.Error(err)
 			}
@@ -482,8 +482,8 @@ func TestLoadCXProgram(t *testing.T) {
 	}
 	for _, testcase := range tests {
 		t.Run(testcase.Scenario, func(t *testing.T) {
-			_, sourceCodes, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, true)
-			err := loader.LoadCXProgram("test", sourceCodes, testcase.Database)
+			_, sourceCodes, rootDirs, _ := loader.ParseArgsForCX([]string{testcase.FilesPath}, true)
+			err := loader.LoadCXProgram("test", rootDirs, sourceCodes, testcase.Database)
 			if err != nil {
 				t.Error(err)
 			}
