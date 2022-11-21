@@ -117,6 +117,20 @@ func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, 
 	var packageListStruct PackageList
 	importMap := make(map[string][]string)
 
+	for i, root := range rootDir {
+		if strings.Contains(root, ".cx") {
+			filePackageName, err := getPackageName(sourceCode[i])
+			if err != nil {
+				return err
+			}
+
+			err = addNewPackage(&packageListStruct, filePackageName, fileMap, importMap, database)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	// Start with the main package
 	err = addNewPackage(&packageListStruct, "main", fileMap, importMap, database)
 	if err != nil {

@@ -2,9 +2,14 @@ package cxparsering
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 
+	"github.com/skycoin/cx/cmd/declaration_extractor"
+	"github.com/skycoin/cx/cmd/packageloader2/file_output"
+	"github.com/skycoin/cx/cmd/packageloader2/loader"
+	"github.com/skycoin/cx/cmd/type_checker"
 	"github.com/skycoin/cx/cx/ast"
 	"github.com/skycoin/cx/cx/constants"
 	"github.com/skycoin/cx/cx/globals"
@@ -27,7 +32,7 @@ import (
 
 	 step 2 : passtwo
 */
-func ParseSourceCode(sourceCode []*os.File, fileNames []string) {
+func ParseSourceCode(sourceCode []*os.File, fileNames []string, rootDirs []string) {
 
 	//local
 	cxpartialparsing.Program = actions.AST
@@ -50,8 +55,37 @@ func ParseSourceCode(sourceCode []*os.File, fileNames []string) {
 		of functions and methods are added in the cxpartialparsing.y pass
 	*/
 	parseErrors := 0
-	if len(sourceCode) > 0 {
-		parseErrors = Preliminarystage(sourceCodeStrings, fileNames)
+	// if len(sourceCode) > 0 {
+	// 	parseErrors = Preliminarystage(sourceCodeStrings, fileNames)
+	// }
+	var err error
+
+	err = loader.LoadCXProgram("main", rootDirs, sourceCode, "bolt")
+	if err != nil {
+		fmt.Print(err)
+		parseErrors++
+	}
+
+	files, err := file_output.GetImportFiles("main", "bolt")
+	if err != nil {
+		fmt.Print(err)
+		parseErrors++
+	}
+
+	Imports, Globals, Enums, TypeDefinitions, Structs, Funcs, err := declaration_extractor.ExtractAllDeclarations(files)
+	if err != nil {
+		fmt.Print(err)
+		parseErrors++
+	}
+
+	if Enums != nil && TypeDefinitions != nil {
+
+	}
+
+	err = type_checker.ParseAllDeclarations(files, Imports, Globals, Structs, Funcs)
+	if err != nil {
+		fmt.Print(err)
+		parseErrors++
 	}
 
 	actions.AST = cxpartialparsing.Program
