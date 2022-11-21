@@ -66,10 +66,12 @@ func ParseFuncHeaders(files []*loader.File, funcs []declaration_extractor.FuncDe
 				}
 			}
 
-			if params[2][1] != nil && len(params[2][1]) != 0 {
-				outputs, err = ParseFuncParameters(params[2][1], pkg, fun.FileID, fun.LineNumber)
-				if err != nil {
-					return err
+			if len(params) == 3 {
+				if params[2][1] != nil && len(params[2][1]) != 0 {
+					outputs, err = ParseFuncParameters(params[2][1], pkg, fun.FileID, fun.LineNumber)
+					if err != nil {
+						return err
+					}
 				}
 			}
 

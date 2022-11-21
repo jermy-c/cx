@@ -128,24 +128,25 @@ func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, 
 			if err != nil {
 				return err
 			}
+		} else {
+			// Start with the main package
+			err = addNewPackage(&packageListStruct, "main", fileMap, importMap, database)
+			if err != nil {
+				return err
+			}
+
+			// load the imported packages
+			err = loadImportPackages(&packageListStruct, "main", fileMap, importMap, database)
+			if err != nil {
+				return err
+			}
+
+			err = checkForDependencyLoop(importMap)
+			if err != nil {
+				return err
+			}
 		}
-	}
 
-	// Start with the main package
-	err = addNewPackage(&packageListStruct, "main", fileMap, importMap, database)
-	if err != nil {
-		return err
-	}
-
-	// load the imported packages
-	err = loadImportPackages(&packageListStruct, "main", fileMap, importMap, database)
-	if err != nil {
-		return err
-	}
-
-	err = checkForDependencyLoop(importMap)
-	if err != nil {
-		return err
 	}
 
 	switch database {
@@ -196,7 +197,6 @@ func createFileMap(rootDir []string, files []*os.File) (fileMap map[string][]*os
 
 		if strings.Contains(rootDir[i], ".cx") {
 			fileMap[filePackageName] = append(fileMap[filePackageName], file)
-
 		} else {
 			path := strings.Split(file.Name(), "/")
 			packageName := path[len(path)-2]
@@ -249,7 +249,7 @@ func addNewPackage(packageListStruct *PackageList, packageName string, fileMap m
 	// Checks if package is found in the directory
 	files, ok := fileMap[packageName]
 	if !ok && !Contains(SKIP_PACKAGES, packageName) {
-		return fmt.Errorf("package %s not found", packageName)
+		return nil
 	}
 
 	// Skip if the import is a built-in package

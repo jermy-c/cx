@@ -74,11 +74,11 @@ func ExtractGlobals(source []byte, fileName string) ([]GlobalDeclaration, error)
 			matchGlobal := reGlobalName.FindSubmatch(line)
 			matchGlobalIdx := reGlobalName.FindIndex(line)
 
-			if matchGlobal == nil || !bytes.Equal(matchGlobal[0], bytes.TrimSpace(line)) {
-				return GlobalDeclarationsArray, fmt.Errorf("%v:%v: syntax error: global declaration", filepath.Base(fileName), lineno)
-			}
-
 			if inBlock == 0 {
+
+				if matchGlobal == nil || !bytes.Equal(matchGlobal[0], bytes.TrimSpace(line)) {
+					return GlobalDeclarationsArray, fmt.Errorf("%v:%v: syntax error: global declaration", filepath.Base(fileName), lineno)
+				}
 
 				var tmp GlobalDeclaration
 
