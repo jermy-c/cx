@@ -3,6 +3,7 @@ package type_checker
 import (
 	"github.com/skycoin/cx/cmd/declaration_extractor"
 	"github.com/skycoin/cx/cx/ast"
+	"github.com/skycoin/cx/cx/packages"
 	"github.com/skycoin/cx/cxparser/actions"
 )
 
@@ -14,7 +15,7 @@ func ParseImports(imports []declaration_extractor.ImportDeclaration) error {
 		pkg, err := actions.AST.GetPackage(imprt.ImportName)
 
 		// If package not in AST
-		if err != nil || pkg == nil {
+		if (err != nil || pkg == nil) && !packages.IsDefaultPackage(imprt.ImportName) {
 
 			newPkg := ast.MakePackage(imprt.ImportName)
 			pkgIdx := actions.AST.AddPackage(newPkg)
