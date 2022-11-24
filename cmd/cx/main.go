@@ -150,7 +150,7 @@ func Run(args []string) {
 	}
 
 	// options, file pointers, filenames
-	cxArgs, sourceCode, rootDirs, fileNames := loader.ParseArgsForCX(commandLine.Args(), true)
+	cxArgs, rootDirs, sourceCode, fileNames := loader.ParseArgsForCX(commandLine.Args(), true)
 
 	// Propagate some options out to other packages.
 	parsingcompletor.DebugLexer = options.debugLexer

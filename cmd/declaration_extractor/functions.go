@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+
+	"github.com/skycoin/cx/cmd/packageloader/loader"
 )
 
 type FuncDeclaration struct {
@@ -93,4 +95,19 @@ func ExtractFuncs(source []byte, fileName string) ([]FuncDeclaration, error) {
 	}
 
 	return FuncDeclarationsArray, nil
+}
+
+func ExtractMethod(fun FuncDeclaration, files []*loader.File) (string, error) {
+
+	bytes, err := GetSourceBytes(files, fun.FileID)
+	if err != nil {
+		return "", err
+	}
+
+	reFuncMethod := regexp.MustCompile(`func\s*\(\s*\w+\s+(\w+)\s*\)`)
+	funcMethod := reFuncMethod.FindSubmatch(bytes[fun.StartOffset : fun.StartOffset+fun.Length])
+	if funcMethod == nil {
+		return "", nil
+	}
+	return string(funcMethod[1]), nil
 }

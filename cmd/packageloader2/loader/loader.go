@@ -14,6 +14,7 @@ import (
 
 	"github.com/skycoin/cx/cmd/packageloader2/bolt"
 	"github.com/skycoin/cx/cmd/packageloader2/redis"
+	"github.com/skycoin/cx/cx/globals"
 	"github.com/skycoin/cx/cx/util"
 	"golang.org/x/crypto/blake2b"
 )
@@ -22,7 +23,7 @@ var SKIP_PACKAGES = []string{"al", "gl", "glfw", "time", "os", "gltext", "cx", "
 var FileHashMap = make(map[string]string)
 var PackageHashMap = make(map[string]string)
 
-func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCode []*os.File, rootDirs []string, fileNames []string) {
+func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, rootDirs []string, sourceCode []*os.File, fileNames []string) {
 	skip := false // flag for skipping arg
 
 	for _, arg := range args {
@@ -103,7 +104,7 @@ func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, sourceCod
 		}
 	}
 
-	return cxArgs, sourceCode, rootDirs, fileNames
+	return cxArgs, rootDirs, sourceCode, fileNames
 }
 
 func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, database string) (err error) {
@@ -117,36 +118,21 @@ func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, 
 	var packageListStruct PackageList
 	importMap := make(map[string][]string)
 
-	for i, root := range rootDir {
-		if strings.Contains(root, ".cx") {
-			filePackageName, err := getPackageName(sourceCode[i])
-			if err != nil {
-				return err
-			}
+	// Start with the main package
+	err = addNewPackage(&packageListStruct, "main", fileMap, importMap, database)
+	if err != nil {
+		return err
+	}
 
-			err = addNewPackage(&packageListStruct, filePackageName, fileMap, importMap, database)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Start with the main package
-			err = addNewPackage(&packageListStruct, "main", fileMap, importMap, database)
-			if err != nil {
-				return err
-			}
+	// load the imported packages
+	err = loadImportPackages(&packageListStruct, "main", fileMap, importMap, database)
+	if err != nil {
+		return err
+	}
 
-			// load the imported packages
-			err = loadImportPackages(&packageListStruct, "main", fileMap, importMap, database)
-			if err != nil {
-				return err
-			}
-
-			err = checkForDependencyLoop(importMap)
-			if err != nil {
-				return err
-			}
-		}
-
+	err = checkForDependencyLoop(importMap)
+	if err != nil {
+		return err
 	}
 
 	switch database {
@@ -249,7 +235,22 @@ func addNewPackage(packageListStruct *PackageList, packageName string, fileMap m
 	// Checks if package is found in the directory
 	files, ok := fileMap[packageName]
 	if !ok && !Contains(SKIP_PACKAGES, packageName) {
-		return nil
+		_, rootDir, sourceCode, _ := ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, packageName)}, true)
+		tmpMap, err := createFileMap(rootDir, sourceCode)
+		if err != nil {
+			return err
+		}
+		for k, v := range tmpMap {
+			fileMap[k] = v
+		}
+		if strings.Contains(packageName, "/") {
+			tokens := strings.Split(packageName, "/")
+			packageName = tokens[len(tokens)-1]
+		}
+		files, ok = fileMap[packageName]
+		if !ok {
+			return fmt.Errorf("package %s not found", packageName)
+		}
 	}
 
 	// Skip if the import is a built-in package

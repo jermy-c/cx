@@ -40,7 +40,7 @@ func parseProgram(options cxCmdFlags, fileNames []string, sourceCode []*os.File,
 	}
 
 	// Parsing all the source code files sent as CLI arguments to CX.
-	cxparsing.ParseSourceCode(sourceCode, fileNames, rootDirs)
+	cxparsing.ParseSourceCode(rootDirs, sourceCode, fileNames)
 
 	// Checking if a main package exists. If not, create and add it to `AST`.
 	if _, err := actions.AST.GetFunction(constants.MAIN_FUNC, constants.MAIN_PKG); err != nil {

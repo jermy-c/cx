@@ -16,7 +16,6 @@ import (
 	"github.com/skycoin/cx/cx/types"
 
 	"github.com/skycoin/cx/cxparser/actions"
-	cxpartialparsing "github.com/skycoin/cx/cxparser/cxpartialparsing"
 	"github.com/skycoin/cx/cxparser/util/profiling"
 )
 
@@ -32,10 +31,10 @@ import (
 
 	 step 2 : passtwo
 */
-func ParseSourceCode(sourceCode []*os.File, fileNames []string, rootDirs []string) {
+func ParseSourceCode(rootDirs []string, sourceCode []*os.File, fileNames []string) {
 
 	//local
-	cxpartialparsing.Program = actions.AST
+	// cxpartialparsing.Program = actions.AST
 
 	/*
 		Copy the contents of the file pointers containing the CX source
@@ -88,11 +87,13 @@ func ParseSourceCode(sourceCode []*os.File, fileNames []string, rootDirs []strin
 		parseErrors++
 	}
 
-	actions.AST = cxpartialparsing.Program
+	// actions.AST = cxpartialparsing.Program
 
 	if globals.FoundCompileErrors || parseErrors > 0 {
 		profiling.CleanupAndExit(constants.CX_COMPILATION_ERROR)
 	}
+
+	actions.AST.PrintProgram()
 
 	/*
 		Adding global variables `OS_ARGS` to the `os` (operating system)
