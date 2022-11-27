@@ -40,12 +40,6 @@ func ParseSourceCode(rootDirs []string, sourceCode []*os.File, fileNames []strin
 		Copy the contents of the file pointers containing the CX source
 		code into sourceCodeStrings
 	*/
-	sourceCodeStrings := make([]string, len(sourceCode))
-	for i, source := range sourceCode {
-		tmp := bytes.NewBuffer(nil)
-		io.Copy(tmp, source)
-		sourceCodeStrings[i] = tmp.String()
-	}
 
 	/*
 		We need to traverse the elements by hierarchy first add all the
@@ -71,6 +65,13 @@ func ParseSourceCode(rootDirs []string, sourceCode []*os.File, fileNames []strin
 		parseErrors++
 	}
 
+	sourceCodeStrings := make([]string, len(files))
+	for i, source := range files {
+		tmp := bytes.NewBuffer(nil)
+		io.Copy(tmp, bytes.NewReader(source.Content))
+		sourceCodeStrings[i] = tmp.String()
+	}
+
 	Imports, Globals, Enums, TypeDefinitions, Structs, Funcs, err := declaration_extractor.ExtractAllDeclarations(files)
 	if err != nil {
 		fmt.Print(err)
@@ -92,8 +93,6 @@ func ParseSourceCode(rootDirs []string, sourceCode []*os.File, fileNames []strin
 	if globals.FoundCompileErrors || parseErrors > 0 {
 		profiling.CleanupAndExit(constants.CX_COMPILATION_ERROR)
 	}
-
-	actions.AST.PrintProgram()
 
 	/*
 		Adding global variables `OS_ARGS` to the `os` (operating system)
@@ -132,7 +131,7 @@ func ParseSourceCode(rootDirs []string, sourceCode []*os.File, fileNames []strin
 		b := bytes.NewBufferString(source)
 
 		if len(fileNames) > 0 {
-			actions.CurrentFile = fileNames[i]
+			actions.CurrentFile = files[i].FileName
 		}
 
 		profiling.StartProfile(actions.CurrentFile)

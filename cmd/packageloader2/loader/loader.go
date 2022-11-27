@@ -130,11 +130,6 @@ func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, 
 		return err
 	}
 
-	err = checkForDependencyLoop(importMap)
-	if err != nil {
-		return err
-	}
-
 	switch database {
 	case "redis":
 		redis.Add(programName, packageListStruct)
@@ -234,6 +229,26 @@ func addNewPackage(packageListStruct *PackageList, packageName string, fileMap m
 
 	// Checks if package is found in the directory
 	files, ok := fileMap[packageName]
+
+	// Creates the import list
+	importList, err := createImportList(files, []string{})
+	if err != nil {
+		return err
+	}
+
+	var mx sync.Mutex
+	// Removes duplicates of imports and adds them to the import map
+	newImportList := RemoveDuplicates(importList)
+
+	mx.Lock()
+	importMap[packageName] = newImportList
+	mx.Unlock()
+
+	err = checkForDependencyLoop(importMap, packageName)
+	if err != nil {
+		return err
+	}
+
 	if !ok && !Contains(SKIP_PACKAGES, packageName) {
 		_, rootDir, sourceCode, _ := ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, packageName)}, true)
 		tmpMap, err := createFileMap(rootDir, sourceCode)
@@ -254,7 +269,7 @@ func addNewPackage(packageListStruct *PackageList, packageName string, fileMap m
 	}
 
 	// Skip if the import is a built-in package
-	if Contains(SKIP_PACKAGES, packageName) {
+	if Contains(SKIP_PACKAGES, packageName) && !ok {
 		return nil
 	}
 
@@ -263,16 +278,6 @@ func addNewPackage(packageListStruct *PackageList, packageName string, fileMap m
 	if err != nil {
 		return err
 	}
-
-	// Creates the import list
-	importList, err := createImportList(files, []string{})
-	if err != nil {
-		return err
-	}
-
-	// Removes duplicates of imports and adds them to the import map
-	newImportList := RemoveDuplicates(importList)
-	importMap[packageName] = newImportList
 
 	// Append the package to the package struct
 	packageListStruct.appendPackage(&packageStruct, database)
@@ -298,15 +303,13 @@ func getImports(file *os.File) (imports []string, err error) {
 	return imports, nil
 }
 
-func checkForDependencyLoop(importMap map[string][]string) (err error) {
-	for packageName := range importMap {
-		for _, importName := range importMap[packageName] {
-			if importName == packageName {
-				return errors.New("Module " + packageName + " imports itself")
-			}
-			if Contains(importMap[importName], packageName) {
-				return errors.New("Dependency loop between modules " + packageName + " and " + importName)
-			}
+func checkForDependencyLoop(importMap map[string][]string, packageName string) (err error) {
+	for _, importName := range importMap[packageName] {
+		if importName == packageName {
+			return errors.New("Module " + packageName + " imports itself")
+		}
+		if Contains(importMap[importName], packageName) {
+			return errors.New("Dependency loop between modules " + packageName + " and " + importName)
 		}
 	}
 	return nil

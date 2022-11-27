@@ -49,12 +49,20 @@ func ParseFuncHeaders(files []*loader.File, funcs []declaration_extractor.FuncDe
 		params := reParams.FindAllSubmatch(funcDeclarationLine, -1)
 
 		if funcMethod != nil {
+
 			receiverArg, err := ParseParameterDeclaration(params[0][1], pkg, fun.FileID, fun.LineNumber)
 			if err != nil {
 				return err
 			}
 
-			fnIdx := actions.FunctionHeader(actions.AST, fun.FuncName, []*ast.CXArgument{receiverArg}, true)
+			fnName := receiverArg.StructType.Name + "." + fun.FuncName
+
+			fn := ast.MakeFunction(fnName, actions.CurrentFile, fun.LineNumber)
+			_, fnIdx := pkg.AddFunction(actions.AST, fn)
+			newFn := actions.AST.GetFunctionFromArray(fnIdx)
+			newFn.AddInput(actions.AST, receiverArg)
+
+			// fnIdx = actions.FunctionHeader(actions.AST, fun.FuncName, []*ast.CXArgument{receiverArg}, true)
 
 			var inputs []*ast.CXArgument
 			var outputs []*ast.CXArgument
@@ -79,7 +87,8 @@ func ParseFuncHeaders(files []*loader.File, funcs []declaration_extractor.FuncDe
 
 		} else {
 
-			fnIdx := actions.FunctionHeader(actions.AST, fun.FuncName, nil, false)
+			fn := ast.MakeFunction(fun.FuncName, fun.FileID, fun.LineNumber)
+			_, fnIdx := pkg.AddFunction(actions.AST, fn)
 
 			var inputs []*ast.CXArgument
 			var outputs []*ast.CXArgument
