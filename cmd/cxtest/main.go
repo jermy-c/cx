@@ -297,7 +297,7 @@ func runTestCases(t *runner.TestRunner) {
 	t.RunEx("--heap-initial=1M issue-60.cx", runner.CxSuccess, "Crash when INIT_HEAP_SIZE limit is reached ", runner.TestIssue, 0)
 	t.RunEx("--heap-initial=1M issue-59-a.cx", runner.CxSuccess, "Crash in garbage collector when heap is resized", runner.TestIssue, 0)
 	t.RunEx("--heap-initial=1M issue-59-b.cx", runner.CxSuccess, "Crash in garbage collector when heap is resized", runner.TestIssue, 0)
-	// t.RunEx("issue-53-a.cx", runner.CxSuccess, "Issues with slice of type T where sizeof T is different than 4 ", runner.TestStable, 0)
+	t.RunEx("issue-53-a.cx", runner.CxSuccess, "Issues with slice of type T where sizeof T is different than 4 ", runner.TestStable, 0)
 	t.RunEx("issue-53-b.cx", runner.CxSuccess, "Issues with slice of type T where sizeof T is different than 4 ", runner.TestStable, 0)
 	t.RunEx("issue-53-c.cx", runner.CxSuccess, "Issues with slice of type T where sizeof T is different than 4 ", runner.TestStable, 0)
 	t.RunEx("issue-51.cx", runner.CxCompilationError, "No compilation error when global variable is redeclared at local scope", runner.TestIssue, 0)
