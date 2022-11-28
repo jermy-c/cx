@@ -118,16 +118,28 @@ func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, 
 	var packageListStruct PackageList
 	importMap := make(map[string][]string)
 
-	// Start with the main package
-	err = addNewPackage(&packageListStruct, "main", fileMap, importMap, database)
-	if err != nil {
-		return err
-	}
+	if len(sourceCode) == 1 && hasMultiplePkgs(sourceCode) {
+		err = addNewPackage(&packageListStruct, "main", sourceCode, importMap, database)
+		if err != nil {
+			return err
+		}
+	} else {
+		files, ok := fileMap["main"]
+		if !ok {
+			return fmt.Errorf("main package not found")
+		}
 
-	// load the imported packages
-	err = loadImportPackages(&packageListStruct, "main", fileMap, importMap, database)
-	if err != nil {
-		return err
+		// Start with the main package
+		err = addNewPackage(&packageListStruct, "main", files, importMap, database)
+		if err != nil {
+			return err
+		}
+
+		// load the imported packages
+		err = loadImportPackages(&packageListStruct, "main", fileMap, importMap, database)
+		if err != nil {
+			return err
+		}
 	}
 
 	switch database {
@@ -225,10 +237,11 @@ func getPackageName(file *os.File) (string, error) {
 //	5. database - "redis" or "bolt"
 //
 // This function contains steps 4 - 9 of package loader
-func addNewPackage(packageListStruct *PackageList, packageName string, fileMap map[string][]*os.File, importMap map[string][]string, database string) error {
+func addNewPackage(packageListStruct *PackageList, packageName string, files []*os.File, importMap map[string][]string, database string) error {
 
-	// Checks if package is found in the directory
-	files, ok := fileMap[packageName]
+	if hasMultiplePkgs(files) {
+		return fmt.Errorf("multiple packages found in one file")
+	}
 
 	// Creates the import list
 	importList, err := createImportList(files, []string{})
@@ -247,30 +260,6 @@ func addNewPackage(packageListStruct *PackageList, packageName string, fileMap m
 	err = checkForDependencyLoop(importMap, packageName)
 	if err != nil {
 		return err
-	}
-
-	if !ok && !Contains(SKIP_PACKAGES, packageName) {
-		_, rootDir, sourceCode, _ := ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, packageName)}, true)
-		tmpMap, err := createFileMap(rootDir, sourceCode)
-		if err != nil {
-			return err
-		}
-		for k, v := range tmpMap {
-			fileMap[k] = v
-		}
-		if strings.Contains(packageName, "/") {
-			tokens := strings.Split(packageName, "/")
-			packageName = tokens[len(tokens)-1]
-		}
-		files, ok = fileMap[packageName]
-		if !ok {
-			return fmt.Errorf("package %s not found", packageName)
-		}
-	}
-
-	// Skip if the import is a built-in package
-	if Contains(SKIP_PACKAGES, packageName) && !ok {
-		return nil
 	}
 
 	// Creates the package struct
@@ -442,8 +431,36 @@ func loadImportPackages(packageListStruct *PackageList, importName string, fileM
 
 		go func(packageListStruct *PackageList, imprt string, fileMap map[string][]*os.File, importMap map[string][]string, database string, errChannel chan error, wg *sync.WaitGroup) {
 			defer wg.Done()
+			files, ok := fileMap[imprt]
+
+			if !ok && !Contains(SKIP_PACKAGES, imprt) {
+				_, rootDir, sourceCode, _ := ParseArgsForCX([]string{filepath.Join(globals.SRCPATH, imprt)}, true)
+				tmpMap, err := createFileMap(rootDir, sourceCode)
+				if err != nil {
+					errChannel <- err
+					return
+				}
+				for k, v := range tmpMap {
+					fileMap[k] = v
+				}
+				if strings.Contains(imprt, "/") {
+					tokens := strings.Split(imprt, "/")
+					imprt = tokens[len(tokens)-1]
+				}
+				files, ok = fileMap[imprt]
+				if !ok {
+					errChannel <- fmt.Errorf("package %s not found", imprt)
+					return
+				}
+			}
+
+			// Skip if the import is a built-in package
+			if Contains(SKIP_PACKAGES, imprt) && !ok {
+				return
+			}
+
 			// Add package
-			err := addNewPackage(packageListStruct, imprt, fileMap, importMap, database)
+			err := addNewPackage(packageListStruct, imprt, files, importMap, database)
 			if err != nil {
 				errChannel <- err
 				return
@@ -471,4 +488,25 @@ func loadImportPackages(packageListStruct *PackageList, importName string, fileM
 	}
 
 	return nil
+}
+
+func hasMultiplePkgs(files []*os.File) bool {
+
+	for _, file := range files {
+		var counter int
+
+		scanner := bufio.NewScanner(file)
+
+		for scanner.Scan() {
+			line := strings.Split(scanner.Text(), " ")
+			if line[0] == "package" {
+				counter++
+			}
+			if counter > 1 {
+				return true
+			}
+		}
+	}
+
+	return false
 }
