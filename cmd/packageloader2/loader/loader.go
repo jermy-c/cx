@@ -109,28 +109,34 @@ func ParseArgsForCX(args []string, alsoSubdirs bool) (cxArgs []string, rootDirs 
 
 func LoadCXProgram(programName string, rootDir []string, sourceCode []*os.File, database string) (err error) {
 
-	// Gets the source files
-	fileMap, err := createFileMap(rootDir, sourceCode)
-	if err != nil {
-		return err
-	}
-
 	var packageListStruct PackageList
-	importMap := make(map[string][]string)
 
-	if len(sourceCode) == 1 && hasMultiplePkgs(sourceCode) {
-		err = addNewPackage(&packageListStruct, "main", sourceCode, importMap, database)
+	if len(sourceCode) == 1 && hasMultiplePkgs(sourceCode[0]) {
+		err = addNewPackage(&packageListStruct, "main", sourceCode, database)
 		if err != nil {
 			return err
 		}
 	} else {
+		// Gets the source files
+		fileMap, err := createFileMap(rootDir, sourceCode)
+		if err != nil {
+			return err
+		}
+
+		importMap := make(map[string][]string)
+
 		files, ok := fileMap["main"]
 		if !ok {
 			return fmt.Errorf("main package not found")
 		}
 
+		err = checkImports("main", files, importMap)
+		if err != nil {
+			return err
+		}
+
 		// Start with the main package
-		err = addNewPackage(&packageListStruct, "main", files, importMap, database)
+		err = addNewPackage(&packageListStruct, "main", files, database)
 		if err != nil {
 			return err
 		}
@@ -237,30 +243,7 @@ func getPackageName(file *os.File) (string, error) {
 //	5. database - "redis" or "bolt"
 //
 // This function contains steps 4 - 9 of package loader
-func addNewPackage(packageListStruct *PackageList, packageName string, files []*os.File, importMap map[string][]string, database string) error {
-
-	if hasMultiplePkgs(files) {
-		return fmt.Errorf("multiple packages found in one file")
-	}
-
-	// Creates the import list
-	importList, err := createImportList(files, []string{})
-	if err != nil {
-		return err
-	}
-
-	var mx sync.Mutex
-	// Removes duplicates of imports and adds them to the import map
-	newImportList := RemoveDuplicates(importList)
-
-	mx.Lock()
-	importMap[packageName] = newImportList
-	mx.Unlock()
-
-	err = checkForDependencyLoop(importMap, packageName)
-	if err != nil {
-		return err
-	}
+func addNewPackage(packageListStruct *PackageList, packageName string, files []*os.File, database string) error {
 
 	// Creates the package struct
 	packageStruct, err := createPackageStruct(packageName, files, Package{}, database)
@@ -399,6 +382,10 @@ func createImportList(files []*os.File, importList []string) ([]string, error) {
 	// Gets imports
 	currentIndex := len(files) - 1
 	currentFile := files[currentIndex]
+	if hasMultiplePkgs(currentFile) {
+		return importList, fmt.Errorf("%s: multiple packages found in one file", filepath.Base(currentFile.Name()))
+	}
+
 	imports, err := getImports(currentFile)
 	if err != nil {
 		return importList, err
@@ -458,9 +445,14 @@ func loadImportPackages(packageListStruct *PackageList, importName string, fileM
 			if Contains(SKIP_PACKAGES, imprt) && !ok {
 				return
 			}
+			err := checkImports(imprt, files, importMap)
+			if err != nil {
+				errChannel <- err
+				return
+			}
 
 			// Add package
-			err := addNewPackage(packageListStruct, imprt, files, importMap, database)
+			err = addNewPackage(packageListStruct, imprt, files, database)
 			if err != nil {
 				errChannel <- err
 				return
@@ -490,23 +482,43 @@ func loadImportPackages(packageListStruct *PackageList, importName string, fileM
 	return nil
 }
 
-func hasMultiplePkgs(files []*os.File) bool {
+func hasMultiplePkgs(file *os.File) bool {
 
-	for _, file := range files {
-		var counter int
+	var counter int
 
-		scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(file)
 
-		for scanner.Scan() {
-			line := strings.Split(scanner.Text(), " ")
-			if line[0] == "package" {
-				counter++
-			}
-			if counter > 1 {
-				return true
-			}
+	for scanner.Scan() {
+		line := strings.Split(scanner.Text(), " ")
+		if line[0] == "package" {
+			counter++
+		}
+		if counter > 1 {
+			return true
 		}
 	}
 
 	return false
+}
+
+func checkImports(packageName string, files []*os.File, importMap map[string][]string) error {
+	// Creates the import list
+	importList, err := createImportList(files, []string{})
+	if err != nil {
+		return err
+	}
+
+	var mx sync.Mutex
+	// Removes duplicates of imports and adds them to the import map
+	newImportList := RemoveDuplicates(importList)
+
+	mx.Lock()
+	importMap[packageName] = newImportList
+	mx.Unlock()
+
+	err = checkForDependencyLoop(importMap, packageName)
+	if err != nil {
+		return err
+	}
+	return nil
 }
