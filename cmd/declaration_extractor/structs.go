@@ -32,8 +32,7 @@ func ExtractStructs(source []byte, fileName string) ([]StructDeclaration, error)
 
 	// Regexes
 	reNotSpace := regexp.MustCompile(`\S+`)
-	rePkg := regexp.MustCompile(`^(?:.+\s+|\s*)package(?:\s+[\S\s]+|\s*)$`)
-	rePkgName := regexp.MustCompile(`package\s+([_a-zA-Z][_a-zA-Z0-9]*)`)
+	reName := regexp.MustCompile(`[_a-zA-Z]\w*`)
 	reStruct := regexp.MustCompile(`type\s+[_a-zA-Z][_a-zA-Z0-9]*\s+struct`)
 	reStructHeader := regexp.MustCompile(`type\s+([_a-zA-Z][_a-zA-Z0-9]*)\s+struct\s*{`)
 	reRightBrace := regexp.MustCompile("}")
@@ -54,17 +53,18 @@ func ExtractStructs(source []byte, fileName string) ([]StructDeclaration, error)
 		line := scanner.Bytes()
 		lineno++
 
+		tokens := bytes.Fields(line)
 		// Package declaration extraction
-		if rePkg.FindIndex(line) != nil {
-
-			matchPkg := rePkgName.FindSubmatch(line)
-
-			if matchPkg == nil || !bytes.Equal(matchPkg[0], bytes.TrimSpace(line)) {
+		if contains(tokens, []byte("package")) {
+			if len(tokens) != 2 {
 				return StructDeclarationsArray, fmt.Errorf("%v:%v: syntax error: package declaration", filepath.Base(fileName), lineno)
 			}
+			name := reName.Find(tokens[1])
+			if name == nil || len(name) != len(tokens[1]) {
+				return StructDeclarationsArray, fmt.Errorf("%v:%v: syntax error: package declaration", filepath.Base(fileName), lineno)
 
-			pkg = string(matchPkg[1])
-
+			}
+			pkg = string(name)
 		}
 
 		// if struct declaration is found
